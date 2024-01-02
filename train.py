@@ -11,14 +11,21 @@ saves training data in a folder of your choosing
 # players are in a list so env stepping can be done one player at a time
 # reset returns list of states
 
+# info[0] is True when round is over and info[1] indicates who goes first next
+# reorder: reset gives initial order, first taker says who is first next, only need to reorder state for single agent
+#          
+
+# NOTE: replace the shuffling of states with shuffling of agents to train different models
 # instantiate agent and env
 # for each epoch
 #   epoch stats init
 #   state = reset
 #   while not done
-#       action = agent(state)
-#       state, reward, done = step
-#       train(agent)
+#       for each state:
+#           action = agent(state)
+#           state, reward, done, info = step
+#           train(agent)
+#           states = reorder(states)
 
 
 # Experiment: train 3 actors with 1 critic, actors represent each part of Azul decision in sequence

@@ -57,7 +57,6 @@ class AzulEnv(object):
         self.tile_types = 5
         self.tile_bag = [20 for _ in range(self.tile_types)]
         
-        
         # bonus points
         self.bonus_horizontal = 2
         self.bonus_vertical = 7
@@ -73,6 +72,8 @@ class AzulEnv(object):
         state.append(self.neg_rows[current_player][:7])
         state.append(self.main_boards[current_player])
         state.append(self.scores[current_player])
+        print("VERIFY STATE WORKS!", state)
+        assert(0)
         if is_score:
             return [0 for _ in range(len(state))]
         return state

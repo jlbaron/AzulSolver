@@ -86,7 +86,7 @@ Transition = namedtuple('Transition',
 
 class ReplayBuffer(object):
 
-    def __init__(self, capacity=256*32, batch_size=256*8):
+    def __init__(self, capacity=10*5, batch_size=2*5):
         self.memory = deque([], maxlen=capacity)
         self.batch_size = batch_size
         self.capacity = capacity
@@ -105,16 +105,34 @@ class ReplayBuffer(object):
 # holds memory and neural networks
 # has detached action and train from memory functions
 class AzulAgent(object):
-    def __init__(self):
+    def __init__(self, hyperparameters={}, game_info={}):
+        assert(hyperparameters != {} and game_info != {})
+        self.hyperparameters = hyperparameters
+        self.game_info = game_info
         # actor
+        self.actor = ActorNetwork(game_info['n_obs'], game_info['n_tiles'], game_info['n_factories'], 
+                                  game_info['n_rows'], hyperparameters['actor_hidden_dim'])
         # critic
+        self.critic = CriticNetwork(game_info['n_obs'], hyperparameters['critic_hidden_dim'])
         # memory
-        # lr, eps_clip, gamma, batch size, memory capacity, hidden size
-        pass
+        self.memory = ReplayBuffer(hyperparameters['mem_capacity'], hyperparameters['mem_batch_size'])
 
     # returns action from state, detached from graph
     def decide_action(self, state):
-        pass
+        with torch.no_grad():
+            tile_probs, factory_probs, row_probs = self.actor(state)
+
+            tile_dist = torch.distributions.Categorical(tile_probs)
+            factory_dist = torch.distributions.Categorical(factory_probs)
+            row_dist = torch.distributions.Categorical(row_probs)
+
+            tile_action = tile_dist.sample()
+            factory_action = factory_dist.sample()
+            row_action = row_dist.sample()
+
+            log_probs = tile_dist.log_prob(tile_action).detach(), factory_dist.log_prob(factory_action).detach(), row_dist.log_prob(row_action).detach()
+            action = tile_action.detach().item(), factory_action.detach().item(), row_action.detach().item()
+            return action, log_probs, self.critic(state).detach()
     
     # train on minibatches of experience from rounds
     def train(self):
