@@ -112,8 +112,10 @@ class AzulAgent(object):
         # actor
         self.actor = ActorNetwork(game_info['n_obs'], game_info['n_tiles'], game_info['n_factories'], 
                                   game_info['n_rows'], hyperparameters['actor_hidden_dim'])
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=hyperparameters['actor_lr'])
         # critic
         self.critic = CriticNetwork(game_info['n_obs'], hyperparameters['critic_hidden_dim'])
+        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=hyperparameters['critic_lr'])
         # memory
         self.memory = ReplayBuffer(hyperparameters['mem_capacity'], hyperparameters['mem_batch_size'])
 
@@ -136,4 +138,32 @@ class AzulAgent(object):
     
     # train on minibatches of experience from rounds
     def train(self):
-        pass
+        if len(self.buffer)//self.buffer.batch_size == 0:
+                return
+        
+        losses = []
+        for i in range(len(self.buffer)//self.buffer.batch_size):
+            samples = self.buffer.sample(i)
+            batch = Transition(*zip(*samples))
+
+            states = torch.cat(batch.state).to(self.device, dtype=torch.float)
+            actions = torch.LongTensor(batch.action).to(self.device)
+            rewards = torch.FloatTensor(batch.reward).to(self.device)
+            terminal = torch.FloatTensor(batch.terminal).to(self.device)
+            values = torch.FloatTensor(batch.value).to(self.device)
+            logprobs = torch.FloatTensor(batch.logprob).to(self.device)
+
+            monte_carlo = []
+            reward_estimate = 0.
+            for r, t in zip(reversed(rewards), reversed(terminal)):
+                if t:
+                        reward_estimate = 0.
+                reward_estimate = r + self.gamma * reward_estimate
+                monte_carlo.insert(0, reward_estimate) # push to top to correct order
+            monte_carlo = torch.FloatTensor(monte_carlo).to(self.device)
+            monte_carlo = (monte_carlo - monte_carlo.mean()) / (monte_carlo.std() + 1e-10)
+
+            advantages = monte_carlo - values
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+            

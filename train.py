@@ -2,6 +2,8 @@
 Trains 2-4 AzulAgents in the AzulEnv
 saves training data in a folder of your choosing
 '''
+from AzulAgent import AzulAgent
+from AzulEnv import AzulEnv
 
 # 1 agent trains, its opponent is itself
 
@@ -38,3 +40,15 @@ saves training data in a folder of your choosing
 
 
 # Experiment: train actors with and without opponents board states
+hyperparameters = {}
+hyperparameters['actor_lr'] = 0.0005
+hyperparameters['critic_lr'] = 0.003
+hyperparameters['actor_hidden_dim'] = 256
+hyperparameters['critic_hidden_dim'] = 256
+# TODO: figure out average game length and state size
+hyperparameters['mem_capacity'] = 50
+hyperparameters['mem_batch_size'] = 10
+
+game_info = {}
+
+agent = AzulAgent(hyperparameters, game_info)

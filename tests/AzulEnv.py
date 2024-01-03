@@ -57,6 +57,7 @@ class AzulEnv(object):
         self.tile_types = 5
         self.tile_bag = [20 for _ in range(self.tile_types)]
         
+        
         # bonus points
         self.bonus_horizontal = 2
         self.bonus_vertical = 7
@@ -65,15 +66,21 @@ class AzulEnv(object):
     def _make_state(self, is_score, current_player):
         state = []
         state.append(current_player)
-        state.append(factory for factory in self.factories)
-        state.append(self.pile_counts)
-        state.append(self.first_taker)
-        state.append(self.prep_boards[current_player])
-        state.append(self.neg_rows[current_player][:7])
-        state.append(self.main_boards[current_player])
+        for factory in self.factories:
+            for tile in factory:
+                state.append(tile)
+        for pile_count in self.pile_counts:
+            state.append(pile_count)
+        state.append(int(self.first_taker))
+        for prep in self.prep_boards[current_player]:
+            for tile in prep:
+                state.append(tile)
+        # separate lists
+        for tile in self.neg_rows[current_player][:7]:
+            state.append(tile)
+        for tile in self.main_boards[current_player]:
+            state.append(tile)
         state.append(self.scores[current_player])
-        print("VERIFY STATE WORKS!", state)
-        assert(0)
         if is_score:
             return [0 for _ in range(len(state))]
         return state
@@ -103,9 +110,9 @@ class AzulEnv(object):
         self.first_taker = True
         self.score_state = -1
 
-        self.main_boards = [[0 for _ in range(self.main_board_ref)] for _ in range(self.num_players)]
-        self.prep_boards = [self.prep_board_ref for _ in range(self.prep_board)]
-        self.neg_rows = [[] for _ in range(self.num_players)]
+        self.main_boards = [[0 for _ in range(len(self.main_board_ref))] for _ in range(self.num_players)]
+        self.prep_boards = [self.prep_board_ref for _ in range(self.num_players)]
+        self.neg_rows = [[0 for _ in range(len(self.neg_row_ref))] for _ in range(self.num_players)]
 
         self.tile_bag = [20 for _ in range(self.tile_types)]
         self.factories = [self._draw_four() for _ in range(self.factory_counts_ref[self.num_players])]
@@ -115,28 +122,38 @@ class AzulEnv(object):
             states.append(self._make_state(False, player))
         return states
     
+    # where finds a tiles location in a row for placement
     def _where(self, tile, row):
         board_slice = self.main_board_ref[row*5:(row+1)*5]
-        for i in board_slice:
+        for i in range(len(board_slice)):
             if tile == board_slice[i]:
-                return i
+                return i + (row*5)
         print("_where could not find tile")
         assert(0)
     
-    def _valid_move(self, action, current_player):
+    # checks if a move is invalid and returns true
+    # 3 types of invalid move:
+    #       taking where a tile does not exist
+    #       placing where row is already occupied with a different tile
+    #       placing where row already has complete tile
+    def _invalid_move(self, action, current_player):
         tile_type, tile_factory, tile_row = action[0], action[1], action[2]
 
         # first check if take and place does not violate game rules -> negative reward no update to game state 
         # if taking a tile from pile or factory where no tile exists
-        if (tile_factory == 0 and self.pile_counts[tile_type] == 0) or (tile_factory != 0 and self.factories[tile_factory][tile_type-1] == 0):
+        if (tile_factory == 0 and self.pile_counts[tile_type] == 0) or (tile_factory != 0 and self.factories[tile_factory-1][tile_type] == 0):
             return True
         # if placing a tile in a row occupied with different tiles
-        if tile_row != 0 and self.prep_boards[current_player][tile_row-1] != tile_type:
+        if tile_row != 0 and (self.prep_boards[current_player][tile_row-1][0] != tile_type and self.prep_boards[current_player][tile_row-1][1] > 0):
             return True
         # if placing a tile in a row where MainBoard already has that tile
         # if main board where reference board row has same tile is occupied
-        if self.main_boards[current_player][self._where(tile_type, tile_row)]:
+        print(self.main_boards[current_player][self._where(tile_type+1, tile_row-1)])
+        print(self._where(tile_type+1, tile_row-1))
+        if self.main_boards[current_player][self._where(tile_type+1, tile_row-1)]:
             return True
+        
+        return False
 
     # calculates score for placing tile into row
     def _score_adjacent_tiles(self, tile, row, current_player):
@@ -170,7 +187,7 @@ class AzulEnv(object):
         num_bonus_cols = 0
 
         for i in range(5):
-            board_slice_idxs = [i*5, (i+1)*5, (i+2)*5, (i+3)*5, (i+4)*5]
+            board_slice_idxs = [i, i+5, i+10, i+15, i+20]
             board_slice = [self.main_boards[current_player][i] for i in board_slice_idxs]
             if 0 not in board_slice:
                 num_bonus_cols += 1
@@ -199,7 +216,7 @@ class AzulEnv(object):
         info = [False, False] # Round over, first taker (only relevant when round ends for next round order)
 
         # check if move violates rules -> punish
-        if self._valid_move(action, current_player):
+        if self._invalid_move(action, current_player):
             return state, -1, done, info
         
         # then take by updating counts of factory, pile, prepboard (and first taker)
