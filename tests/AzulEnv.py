@@ -148,8 +148,6 @@ class AzulEnv(object):
             return True
         # if placing a tile in a row where MainBoard already has that tile
         # if main board where reference board row has same tile is occupied
-        print(self.main_boards[current_player][self._where(tile_type+1, tile_row-1)])
-        print(self._where(tile_type+1, tile_row-1))
         if self.main_boards[current_player][self._where(tile_type+1, tile_row-1)]:
             return True
         
@@ -225,26 +223,43 @@ class AzulEnv(object):
             info[1] = True
             self.first_taker = False
             self.neg_rows[current_player].append(1)
-        self.prep_boards[current_player][tile_row][0] = tile_type
+
         # update factory or pile
         if tile_factory != 0:
+            factory_idx = tile_factory-1
+            # option to place in negative row
+            if tile_row == 0:
+                for i in range(self.factories[factory_idx][tile_type]):
+                    self.neg_rows[current_player].append(1)
+            else:
             # prepboards gain tile type and count, zero out count in factory
-            self.prep_boards[current_player][tile_row][0] += tile_type
-            self.prep_boards[current_player][tile_row][1] += self.factories[tile_factory][tile_type]
-            self.factories[tile_factory][tile_type] = 0
-        else:
-            # add count to board and zero out
-            self.prep_boards[current_player][tile_row][0] += tile_type
-            self.prep_boards[current_player][tile_row][1] += self.pile_counts[tile_type]
-            self.pile_counts[tile_type] = 0
+                self.prep_boards[current_player][tile_row-1][0] += tile_type
+                self.prep_boards[current_player][tile_row-1][1] += self.factories[factory_idx][tile_type]
 
-        # check for overflow in prepboard and to negative row
-        for i in range(self.prep_boards[current_player][tile_row] > tile_row+1):
+
+            self.factories[factory_idx][tile_type] = 0
+            for idx, tile_count in enumerate(self.factories[factory_idx]):
+                self.pile_counts[idx] += tile_count
+                self.factories[factory_idx][idx] = 0
+            
+        else:
+            if tile_row == 0:
+                for i in range(self.pile_counts[tile_type]):
+                    self.neg_rows[current_player].append(1)
+            else:
+                # add count to board and zero out
+                self.prep_boards[current_player][tile_row-1][0] = tile_type
+                self.prep_boards[current_player][tile_row-1][1] += self.pile_counts[tile_type]
+                self.pile_counts[tile_type] = 0
+
+        # check for overflow in prepboard and add to negative row
+        negative_tiles = self.prep_boards[current_player][tile_row][1] - tile_row+1 if self.prep_boards[current_player][tile_row][1] - tile_row+1 > 0 else 0
+        for i in range(negative_tiles):
             self.neg_rows[current_player].append(1)
 
 
         # if no more tiles remain in factories and pile then you are last player -> begin scoring
-        if sum([sum(i) for i in self.factories] + sum(self.pile_counts)) == 0:
+        if sum([sum(i) for i in self.factories]) + sum(self.pile_counts) == 0:
             self.score_state = 0
         
         # if true then enter scoring state, record current player

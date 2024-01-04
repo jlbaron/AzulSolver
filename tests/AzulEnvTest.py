@@ -185,9 +185,40 @@ def test_bonus_flush():
     assert(env._get_bonus_flush(0) == 2)
 
 # TODO: test the big one
-def test_step():
+def test_step_easy():
     env = AzulEnv(num_players=2, seed=0)
     env.reset()
+
+    # easy tests just to verify nothing is too broken
+    # 2 player game, each take a step and verify all is good
+    print(env.factories[0])
+    # player 1 takes tiles from factory 0 and places into row 0
+    state, reward, done, info = env.step([0, 1, 1], 0)
+    print(env.factories[0], env.pile_counts)
+    assert(sum(env.factories[0]) == 0)
+    print(env.pile_counts)
+    print(env.prep_boards[0], env.main_boards[0])
+
+    # try an invalid move
+
+def test_step_medium():
+    env = AzulEnv(num_players=2, seed=0)
+    env.reset()
+
+    # harder tests for mid game scenarios
+    # round complete/scoring
+
+    # game complete
+
+def test_step_hard():
+    env = AzulEnv(num_players=2, seed=0)
+    env.reset()
+
+    # edge cases
+
+    # 3-4 players
+    # too many negative tiles
+    # out of order play?
 
 
 if __name__ == '__main__':
@@ -200,4 +231,5 @@ if __name__ == '__main__':
     # test_score_adjacent()
     # test_bonus_horizontal()
     # test_bonus_vertical()
-    test_bonus_flush()
+    # test_bonus_flush()
+    test_step_easy()

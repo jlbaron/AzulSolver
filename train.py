@@ -46,9 +46,38 @@ hyperparameters['critic_lr'] = 0.003
 hyperparameters['actor_hidden_dim'] = 256
 hyperparameters['critic_hidden_dim'] = 256
 # TODO: figure out average game length and state size
+hyperparameters['avg_game_length'] = 0
 hyperparameters['mem_capacity'] = 50
 hyperparameters['mem_batch_size'] = 10
+hyperparameters['eps_clip'] = 0.1
 
 game_info = {}
+game_info['num_players'] = 2
 
 agent = AzulAgent(hyperparameters, game_info)
+env = AzulEnv()
+
+epochs = 1000
+for epoch in range(epochs):
+    # gather batch of experiences
+    for i in range(*hyperparameters['avg_game_length']):
+        # play a game
+        states = env.reset()
+        player_order = [i for i in range(hyperparameters['num_players'])]
+
+        done = False
+        while not done:
+            first_taker = None
+            for player in player_order:
+                action = agent.decide_action(states[player])
+                states[player], reward, done, info = env.step(action, player)
+                loss = agent.train()
+                if info[0] and info[1]:
+                    first_taker = player
+            # reorder
+            if first_taker is not None:
+                player_order[0] = first_taker
+                for player in range(game_info['num_players']-1):
+                    player_order[player] = first_taker + player + 1 % game_info['num_players']
+
+                                

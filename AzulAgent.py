@@ -6,6 +6,13 @@ import torch.nn as nn
 from collections import namedtuple, deque
 
 
+# ActorNetwork takes in state and outputs probabilities for the best move
+# with more experience probabilities become less random
+# Azul has three parts to every move:
+#       what tile to pick up
+#       from where
+#       to where
+# This actor network separates the decision into 3 decision making heads
 class ActorNetwork(nn.Module):
     def __init__(self, n_obs, n_tiles, n_factories, n_rows, hidden_dim, device='cpu'):
         super(ActorNetwork, self).__init__()
@@ -52,6 +59,8 @@ class ActorNetwork(nn.Module):
 
         return tile_probs, factory_probs, row_probs
 
+# Critic network takes state and outputs single value
+# works to guide the actor network towards more valuable decisions
 class CriticNetwork(nn.Module):
     def __init__(self, n_obs, hidden_dim, device='cpu'):
         super(CriticNetwork, self).__init__()
@@ -117,7 +126,7 @@ class AzulAgent(object):
         self.critic = CriticNetwork(game_info['n_obs'], hyperparameters['critic_hidden_dim'])
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=hyperparameters['critic_lr'])
         # memory
-        self.memory = ReplayBuffer(hyperparameters['mem_capacity'], hyperparameters['mem_batch_size'])
+        self.memory = ReplayBuffer(hyperparameters['mem_capacity']*hyperparameters['avg_game_length'], hyperparameters['mem_batch_size']*hyperparameters['avg_game_length'])
 
     # returns action from state, detached from graph
     def decide_action(self, state):
@@ -135,6 +144,20 @@ class AzulAgent(object):
             log_probs = tile_dist.log_prob(tile_action).detach(), factory_dist.log_prob(factory_action).detach(), row_dist.log_prob(row_action).detach()
             action = tile_action.detach().item(), factory_action.detach().item(), row_action.detach().item()
             return action, log_probs, self.critic(state).detach()
+        
+    def _calc_actor_loss(self, action_probs=None, actions=None, logprobs=None, advantages=None):
+        dist = torch.distributions.Categorical(action_probs)
+        new_logprobs = dist.log_prob(actions)
+        entropy = dist.entropy()
+
+        ratios = torch.exp(new_logprobs - logprobs)
+
+        s1_loss = ratios * advantages.detach()
+        s2_loss = torch.clamp(ratios, 1-self.hyperparameters['eps_clip'], 1+self.hyperparameters['eps_clip'])* advantages.detach()
+
+        # NOTE: entropy can possibly be toggled
+        actor_loss = torch.mean(-torch.min(s1_loss, s2_loss) - 0.01*entropy)
+        return actor_loss
     
     # train on minibatches of experience from rounds
     def train(self):
@@ -146,6 +169,7 @@ class AzulAgent(object):
             samples = self.buffer.sample(i)
             batch = Transition(*zip(*samples))
 
+            # Extract transition from sample batch
             states = torch.cat(batch.state).to(self.device, dtype=torch.float)
             actions = torch.LongTensor(batch.action).to(self.device)
             rewards = torch.FloatTensor(batch.reward).to(self.device)
@@ -153,17 +177,45 @@ class AzulAgent(object):
             values = torch.FloatTensor(batch.value).to(self.device)
             logprobs = torch.FloatTensor(batch.logprob).to(self.device)
 
-            monte_carlo = []
+            # calculate episodic returns for multiple games in a row
+            returns = []
             reward_estimate = 0.
             for r, t in zip(reversed(rewards), reversed(terminal)):
                 if t:
                         reward_estimate = 0.
                 reward_estimate = r + self.gamma * reward_estimate
-                monte_carlo.insert(0, reward_estimate) # push to top to correct order
-            monte_carlo = torch.FloatTensor(monte_carlo).to(self.device)
-            monte_carlo = (monte_carlo - monte_carlo.mean()) / (monte_carlo.std() + 1e-10)
+                returns.insert(0, reward_estimate) # push to top to correct order
+            returns = torch.FloatTensor(returns).to(self.device)
+            returns = (returns - returns.mean()) / (returns.std() + 1e-10)
 
-            advantages = monte_carlo - values
+            # calculate advantages and normalize
+            advantages = returns - values
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-            
+            # three parts to decision so 3 different actor losses to calculate
+            action_probs = self.actor(states.reshape(self.memory.batch_size, self.n_obs))
+            actor_loss_tile = self._calc_actor_loss(action_probs=action_probs[0], actions=actions, logprobs=logprobs, advantages=advantages)
+            actor_loss_factory = self._calc_actor_loss(action_probs=action_probs[1], actions=actions, logprobs=logprobs, advantages=advantages)
+            actor_loss_row = self._calc_actor_loss(action_probs=action_probs[2], actions=actions, logprobs=logprobs, advantages=advantages)
+
+            # clipped critic loss
+            critic_val = self.critic(states.reshape(self.buffer.batch_size, self.n_obs)).squeeze()
+            val_clipped = values + (values + critic_val).clamp(-self.hyperparameters['eps_clip'], self.hyperparameters['eps_clip'])
+            val_clipped = returns.detach() - val_clipped
+            val_unclipped = torch.mean((returns.detach() - critic_val)**2)
+            critic_loss = torch.mean(torch.max(val_clipped, val_unclipped))
+            critic_loss = torch.mean((critic_val - returns.detach())**2)
+
+            # wrap up all the losses into one
+            # NOTE: can make coefficients hyperpparameters in the future
+            loss = actor_loss_tile*0.33 + actor_loss_factory*0.33 + actor_loss_row*0.33 + critic_loss*0.5
+
+            self.actor_opt.zero_grad()
+            self.critic_opt.zero_grad()
+
+            loss.backward()
+
+            self.actor_opt.step()
+            self.critic_opt.step()
+            losses.append(loss.item())
+        return losses
