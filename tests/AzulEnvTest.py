@@ -187,7 +187,8 @@ def test_bonus_flush():
 # TODO: test the big one
 def test_step_easy():
     env = AzulEnv(num_players=2, seed=0)
-    env.reset()
+    states = env.reset()
+    print(states[0])
 
     # easy tests just to verify nothing is too broken
     # 2 player game, each take a step and verify all is good

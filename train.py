@@ -63,7 +63,7 @@ for epoch in range(epochs):
     for i in range(*hyperparameters['avg_game_length']):
         # play a game
         states = env.reset()
-        player_order = [i for i in range(hyperparameters['num_players'])]
+        player_order = [i for i in range(game_info['num_players'])]
 
         done = False
         while not done:
