@@ -52,15 +52,14 @@ class AzulEnvVisualization():
 
     # Function to draw the game board with player observations
     # 9-11 rows: 2-4 for available tiles, 1 for pile, 5 for player board, 1 extra for other obs
-    # TODO: show all players boards
-    #       pass in states instead of singular state
-    #       have a start row and just do the same calculations for each state in state
+    # TODO: When I come around to 3-4 player games I should place those games on the side
+    #       they will currently get lost under the screen
     def draw_state(self, states, current_player):
         self.screen.fill((160, 160, 160))
 
         # state provides all information needed to render
-        factory_bound = 5*self.env.factory_counts_ref[self.env.num_players-2]
-        prep_board_bound = factory_bound+5
+        factory_bound = self.env.factory_counts_ref[self.env.num_players-2] * 5
+        prep_board_bound = factory_bound + 5
         neg_row_bound = prep_board_bound + 10
         main_board_bound = neg_row_bound + 1
         extra_obs_bound = main_board_bound + 25
@@ -93,17 +92,18 @@ class AzulEnvVisualization():
                 tile_ctr = 0
             if i % 5 ==  0:
                 # draw line to visually separate factories
-                pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width, factory_row * cell_height-20),
-                         (tile_ctr  * cell_width, factory_row * cell_height+20), 3)
+                pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width + 3, factory_row * cell_height-20),
+                         (tile_ctr  * cell_width + 3, factory_row * cell_height+20), 3)
                 tile_ctr += 1
             if tile > 0:
-                center = (tile_ctr * cell_width, factory_row*cell_height)
-                pygame.draw.circle(self.screen, self.tile_colors[i%5], center, tile_radius)
-                pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width-35, factory_row * cell_height-20),
-                         (tile_ctr  * cell_width+35, factory_row * cell_height-20), 3)
-                pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width-35, factory_row * cell_height+20),
-                         (tile_ctr  * cell_width+35, factory_row * cell_height+20), 3)
-                tile_ctr += 1
+                for j in range(tile):
+                    center = (tile_ctr * cell_width, factory_row*cell_height)
+                    pygame.draw.circle(self.screen, self.tile_colors[i%5], center, tile_radius)
+                    pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width-35, factory_row * cell_height-20),
+                            (tile_ctr  * cell_width+35, factory_row * cell_height-20), 3)
+                    pygame.draw.line(self.screen, (0, 0, 0), (tile_ctr * cell_width-35, factory_row * cell_height+20),
+                            (tile_ctr  * cell_width+35, factory_row * cell_height+20), 3)
+                    tile_ctr += 1
 
         # Draw pile on a new row
         pile_row = factory_row+2
@@ -184,33 +184,48 @@ class AzulEnvVisualization():
             # Draw player score and first taker
             # pygame.draw.rect(self.screen, self.WHITE, (10*cell_width, 5*cell_height, 10, 10), 1)
             text = self.font.render(f"Score: {score}", True, self.BLACK)
-            self.screen.blit(text, (12*cell_width, ((idx+1)*10)*cell_height, 10, 10))
-            text = self.font.render(f"Player: {current_player}", True, self.BLACK)
-            self.screen.blit(text, (12*cell_width, ((idx+1)*11)*cell_height, 10, 10))
+            self.screen.blit(text, (12*cell_width, ((idx+1)*9)*cell_height, 5, 5))
+            text = self.font.render(f"Player: {state[extra_obs_bound+2]}", True, self.BLACK)
+            self.screen.blit(text, (12*cell_width, ((idx+1)*10)*cell_height, 5, 5))
         
         pygame.display.flip()
+        # pygame.time.delay(5000)
 
-    def _test_visual_board(self):
+    def _test_visual_board(self, states, player):
         # 5x5 factories, 5 pile count, 2x5 prep, 7 negative, 5x5 main board, first taker + score + current player
         # DISCLAIMER: this is not a realistic board but it has enough to visually verify stuff works
-        state = [1, 0, 1, 2, 0, 
-                 0, 0, 1, 2, 1, 
-                 0, 1, 1, 1, 1, 
-                 0, 2, 1, 0, 1, 
-                 1, 0, 1, 0, 2, 
-                 0, 0, 0, 0, 0, 
-                 0, 1, 1, 2, 0, 0, 2, 3, 4, 2,
-                 3, 
-                 0, 0, 1, 0, 0,
-                 0, 0, 1, 0, 0, 
-                 0, 0, 1, 0, 0, 
-                 0, 0, 1, 0, 0, 
-                 0, 0, 1, 0, 0, 
-                 13, 1, 0]
-        # state = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        # states = []
+        # states.append([1, 0, 1, 2, 0, 
+        #          0, 0, 1, 2, 1, 
+        #          0, 1, 1, 1, 1, 
+        #          0, 2, 1, 0, 1, 
+        #          1, 0, 1, 0, 2, 
+        #          0, 0, 0, 0, 0, 
+        #          0, 1, 1, 2, 0, 0, 2, 3, 4, 2,
+        #          3, 
+        #          0, 0, 1, 0, 0,
+        #          0, 0, 1, 0, 0, 
+        #          0, 0, 1, 0, 0, 
+        #          0, 0, 1, 0, 0, 
+        #          0, 0, 1, 0, 0, 
+        #          13, 1, 0])
+        # states.append([1, 0, 1, 2, 0, 
+        #          0, 0, 1, 2, 1, 
+        #          0, 1, 1, 1, 1, 
+        #          0, 2, 1, 0, 1, 
+        #          1, 0, 1, 0, 2, 
+        #          0, 0, 0, 0, 0, 
+        #          0, 1, 1, 2, 0, 0, 2, 3, 3, 5,
+        #          1, 
+        #          0, 0, 0, 0, 0,
+        #          0, 1, 1, 1, 0, 
+        #          0, 1, 1, 1, 0, 
+        #          0, 1, 1, 1, 0, 
+        #          0, 0, 0, 0, 0, 
+        #          18, 1, 1])
         done = False
         while not done:
-            self.draw_state([state])
+            self.draw_state(states, player)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -220,7 +235,7 @@ class AzulEnvVisualization():
         for i in range(5):
             for j in range(6):
                 for k in range(6):
-                    if not env._invalid_move([i, j, k], player):
+                    if not self.env._invalid_move([i, j, k], player):
                         return [i, j, k]
         print("No valid move?")
         assert(0)
@@ -233,29 +248,31 @@ class AzulEnvVisualization():
         game_info['num_players'] = 2
 
         # Main game loop
-        states = env.reset()
+        states = self.env.reset()
         player_order = [i for i in range(game_info['num_players'])]
 
         done = False
-        info = [0, 0]
+        info = {}
+        player_game_lens = [0, 0]
         while not done:
             first_taker = None
             for player in player_order:
+                player_game_lens[player] += 1
                 self.draw_state(states, player)
-                pygame.time.delay(5000)
 
                 # action = self._choose_pseudorandom_action(player)
-                reward = -1
-                while reward == -1:
+                action = [random.randint(0, 4), random.randint(0, 5), random.randint(0, 5)]
+                states, reward, done, info = self.env.step(action, player)
+                # print("State length: ", len(states[0]))
+                while info['restart_round']:
                     action = [random.randint(0, 4), random.randint(0, 5), random.randint(0, 5)]
-                    states[player], reward, done, info = env.step(action, player)
+                    states, reward, done, info = self.env.step(action, player)
 
                 # Update the Pygame visualization
                 self.draw_state(states, player)
-
-                if info[0] and info[1]:
+                # pygame.time.delay(1000)
+                if info['round_end'] and info['first_taker']:
                     first_taker = player
-                pygame.time.delay(5000)
 
             # Reorder players
             if first_taker is not None:
@@ -263,7 +280,7 @@ class AzulEnvVisualization():
                 for player in range(game_info['num_players'] - 1):
                     player_order[player + 1] = (first_taker + player + 1) % game_info['num_players']
 
-
+        print("Game length", player_game_lens)
         # Quit Pygame
         pygame.quit()
         sys.exit()
@@ -272,5 +289,4 @@ if __name__ == '__main__':
     from AzulEnv import AzulEnv
     env = AzulEnv()
     vis = AzulEnvVisualization(env)
-    # vis._test_visual_board()
     vis.play_human_game()

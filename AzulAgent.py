@@ -116,6 +116,7 @@ class ReplayBuffer(object):
 class AzulAgent(object):
     def __init__(self, hyperparameters={}, game_info={}):
         assert(hyperparameters != {} and game_info != {})
+        self.device = 'cpu'
         self.hyperparameters = hyperparameters
         self.game_info = game_info
         # actor
@@ -161,12 +162,12 @@ class AzulAgent(object):
     
     # train on minibatches of experience from rounds
     def train(self):
-        if len(self.buffer)//self.buffer.batch_size == 0:
+        if len(self.memory)//self.memory.batch_size == 0:
                 return
         
         losses = []
-        for i in range(len(self.buffer)//self.buffer.batch_size):
-            samples = self.buffer.sample(i)
+        for i in range(len(self.memory)//self.memory.batch_size):
+            samples = self.memory.sample(i)
             batch = Transition(*zip(*samples))
 
             # Extract transition from sample batch
@@ -183,7 +184,7 @@ class AzulAgent(object):
             for r, t in zip(reversed(rewards), reversed(terminal)):
                 if t:
                         reward_estimate = 0.
-                reward_estimate = r + self.gamma * reward_estimate
+                reward_estimate = r + self.hyperparameters['gamma'] * reward_estimate
                 returns.insert(0, reward_estimate) # push to top to correct order
             returns = torch.FloatTensor(returns).to(self.device)
             returns = (returns - returns.mean()) / (returns.std() + 1e-10)
@@ -193,13 +194,25 @@ class AzulAgent(object):
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
             # three parts to decision so 3 different actor losses to calculate
-            action_probs = self.actor(states.reshape(self.memory.batch_size, self.n_obs))
-            actor_loss_tile = self._calc_actor_loss(action_probs=action_probs[0], actions=actions, logprobs=logprobs, advantages=advantages)
-            actor_loss_factory = self._calc_actor_loss(action_probs=action_probs[1], actions=actions, logprobs=logprobs, advantages=advantages)
-            actor_loss_row = self._calc_actor_loss(action_probs=action_probs[2], actions=actions, logprobs=logprobs, advantages=advantages)
+            action_probs = self.actor(states.reshape(self.memory.batch_size, self.game_info['n_obs']))
+
+            # separate actions
+            tile_actions = torch.FloatTensor([action[0] for action in actions])
+            factory_actions = torch.FloatTensor([action[1] for action in actions])
+            row_actions = torch.FloatTensor([action[2] for action in actions])
+
+            # separate logprobs
+            tile_logprobs = torch.FloatTensor([lp[0] for lp in logprobs])
+            factory_logprobs = torch.FloatTensor([lp[1] for lp in logprobs])
+            row_logprobs = torch.FloatTensor([lp[2] for lp in logprobs])
+
+            # calculate actor losses
+            actor_loss_tile = self._calc_actor_loss(action_probs=action_probs[0], actions=tile_actions, logprobs=tile_logprobs, advantages=advantages)
+            actor_loss_factory = self._calc_actor_loss(action_probs=action_probs[1], actions=factory_actions, logprobs=factory_logprobs, advantages=advantages)
+            actor_loss_row = self._calc_actor_loss(action_probs=action_probs[2], actions=row_actions, logprobs=row_logprobs, advantages=advantages)
 
             # clipped critic loss
-            critic_val = self.critic(states.reshape(self.buffer.batch_size, self.n_obs)).squeeze()
+            critic_val = self.critic(states.reshape(self.memory.batch_size, self.game_info['n_obs'])).squeeze()
             val_clipped = values + (values + critic_val).clamp(-self.hyperparameters['eps_clip'], self.hyperparameters['eps_clip'])
             val_clipped = returns.detach() - val_clipped
             val_unclipped = torch.mean((returns.detach() - critic_val)**2)
@@ -208,6 +221,7 @@ class AzulAgent(object):
 
             # wrap up all the losses into one
             # NOTE: can make coefficients hyperpparameters in the future
+            # I just went with some sensible values to start (actor loss coeffs sum to 1 + 50% of critic)
             loss = actor_loss_tile*0.33 + actor_loss_factory*0.33 + actor_loss_row*0.33 + critic_loss*0.5
 
             self.actor_opt.zero_grad()

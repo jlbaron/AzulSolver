@@ -4,6 +4,7 @@ saves training data in a folder of your choosing
 '''
 from AzulAgent import AzulAgent
 from AzulEnv import AzulEnv
+import torch
 
 # 1 agent trains, its opponent is itself
 
@@ -46,21 +47,30 @@ hyperparameters['critic_lr'] = 0.003
 hyperparameters['actor_hidden_dim'] = 256
 hyperparameters['critic_hidden_dim'] = 256
 # TODO: figure out average game length and state size
-hyperparameters['avg_game_length'] = 0
-hyperparameters['mem_capacity'] = 50
+hyperparameters['avg_game_length'] = 38  # found from random testing, will change with more players
+# capacity and batch size expressed in # of games (multiplied with avg_game_length)
+hyperparameters['mem_capacity'] = 50 
 hyperparameters['mem_batch_size'] = 10
+
 hyperparameters['eps_clip'] = 0.1
+hyperparameters['gamma'] = 0.99
 
 game_info = {}
 game_info['num_players'] = 2
+game_info['n_obs'] = 69
+game_info['n_tiles'] = 5
+game_info['n_factories'] = 6 # extra option for pile
+game_info['n_rows'] = 6  # extra option for negative row
 
 agent = AzulAgent(hyperparameters, game_info)
 env = AzulEnv()
 
 epochs = 1000
 for epoch in range(epochs):
+    rewards = [] # batch rewards
+    losses = [] # batch losses
     # gather batch of experiences
-    for i in range(*hyperparameters['avg_game_length']):
+    for i in range(hyperparameters['mem_capacity']):
         # play a game
         states = env.reset()
         player_order = [i for i in range(game_info['num_players'])]
@@ -69,15 +79,33 @@ for epoch in range(epochs):
         while not done:
             first_taker = None
             for player in player_order:
-                action = agent.decide_action(states[player])
-                states[player], reward, done, info = env.step(action, player)
-                loss = agent.train()
-                if info[0] and info[1]:
+                # initial move attempt
+                state = torch.FloatTensor(states[player])
+                action, log_probs, value = agent.decide_action(state)
+                states, reward, done, info = env.step(action, player)
+                agent.memory.push(state, action, reward, done, value, log_probs)
+                rewards.append(reward)
+
+                # could be an invalid move so will need to try again (as many times as needed)
+                while info['restart_round']:
+                    state = torch.FloatTensor(states[player])
+                    action, log_probs, value = agent.decide_action(state)
+                    states, reward, done, info = env.step(action, player)
+                    agent.memory.push(state, action, reward, done, value, log_probs)
+                    rewards.append(reward)
+
+                # at the end of the round, find out who is first for next round
+                if info['round_end'] and info['first_taker']:
                     first_taker = player
-            # reorder
+
+            # reorder based on first taker
+            # some circular modulo math to preserve orders as if players were at a table
             if first_taker is not None:
                 player_order[0] = first_taker
                 for player in range(game_info['num_players']-1):
                     player_order[player] = first_taker + player + 1 % game_info['num_players']
+        loss = agent.train()
+        losses.append(sum(loss)/len(loss))
+    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")
 
                                 
