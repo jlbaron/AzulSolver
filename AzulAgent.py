@@ -22,12 +22,14 @@ class ActorNetwork(nn.Module):
         self.n_factories = n_factories
         self.n_rows = n_rows
 
+        # initial base calculations
         self.actor_head = nn.Sequential(
             nn.Linear(n_obs, hidden_dim, dtype=torch.float, device=device),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim//2, dtype=torch.float, device=device),
             nn.ReLU()
         )
+
         # what tile
         self.tile_linear = nn.Linear(hidden_dim//2, n_tiles, dtype=torch.float, device=device)
         self.tile_smax = nn.Softmax(dim=-1)
@@ -67,6 +69,7 @@ class CriticNetwork(nn.Module):
         self.seed = torch.manual_seed(0)
         self.n_obs = n_obs
 
+        # ends with 1 value for the value of the position
         self.critic = nn.Sequential(
             nn.Linear(n_obs, hidden_dim, dtype=torch.float, device=device),
             nn.ReLU(),
@@ -88,11 +91,11 @@ class CriticNetwork(nn.Module):
         value = self.critic(x)
         return value
 
-    
+# Transition tuple that represents the information of one state transition in the mdp
 Transition = namedtuple('Transition',
                         ('state', 'action', 'reward', 'terminal', 'value', 'logprob'))
 
-
+# Replay memory for the agent to sample from for training
 class ReplayBuffer(object):
 
     def __init__(self, capacity=10*5, batch_size=2*5):
@@ -100,9 +103,11 @@ class ReplayBuffer(object):
         self.batch_size = batch_size
         self.capacity = capacity
 
+    # add a sample to the end of the deque
     def push(self, *args):
         self.memory.append(Transition(*args))
 
+    # sample from an index using batch size to determine bounds
     def sample(self, i):
         lower = i*self.batch_size
         higher = (i+1)*self.batch_size
@@ -134,30 +139,37 @@ class AzulAgent(object):
         with torch.no_grad():
             tile_probs, factory_probs, row_probs = self.actor(state)
 
+            # get distribution of action probabilities
             tile_dist = torch.distributions.Categorical(tile_probs)
             factory_dist = torch.distributions.Categorical(factory_probs)
             row_dist = torch.distributions.Categorical(row_probs)
 
+            # weighted sample to get action
             tile_action = tile_dist.sample()
             factory_action = factory_dist.sample()
             row_action = row_dist.sample()
 
+            # return sampled actions, logprobs of each action, and the critic value
             log_probs = tile_dist.log_prob(tile_action).detach(), factory_dist.log_prob(factory_action).detach(), row_dist.log_prob(row_action).detach()
             action = tile_action.detach().item(), factory_action.detach().item(), row_action.detach().item()
             return action, log_probs, self.critic(state).detach()
         
+    # calculate actor loss through the clipped loss method of PPO
     def _calc_actor_loss(self, action_probs=None, actions=None, logprobs=None, advantages=None):
+        # get distribution logprobs and entropy
         dist = torch.distributions.Categorical(action_probs)
         new_logprobs = dist.log_prob(actions)
         entropy = dist.entropy()
 
+        # ratio of difference between training logprobs and one previously calculated while playing
         ratios = torch.exp(new_logprobs - logprobs)
 
+        # 2 surrogate losses based on ratios and multiplied by advantages
         s1_loss = ratios * advantages.detach()
         s2_loss = torch.clamp(ratios, 1-self.hyperparameters['eps_clip'], 1+self.hyperparameters['eps_clip'])* advantages.detach()
 
-        # NOTE: entropy can possibly be toggled
-        actor_loss = torch.mean(-torch.min(s1_loss, s2_loss) - 0.01*entropy)
+        # take the minimum to make the new model not too different from the old model
+        actor_loss = torch.mean(-torch.min(s1_loss, s2_loss) - self.hyperparameters['entropy_coeff']*entropy)
         return actor_loss
     
     # train on minibatches of experience from rounds
@@ -167,6 +179,7 @@ class AzulAgent(object):
         
         losses = []
         for i in range(len(self.memory)//self.memory.batch_size):
+            # get sample based on index and convert to a Transition tuple
             samples = self.memory.sample(i)
             batch = Transition(*zip(*samples))
 
@@ -221,9 +234,9 @@ class AzulAgent(object):
 
             # wrap up all the losses into one
             # NOTE: can make coefficients hyperpparameters in the future
-            # I just went with some sensible values to start (actor loss coeffs sum to 1 + 50% of critic)
             loss = actor_loss_tile*0.33 + actor_loss_factory*0.33 + actor_loss_row*0.33 + critic_loss*0.5
 
+            # typical PyTorch backward pass and optimizer steps
             self.actor_opt.zero_grad()
             self.critic_opt.zero_grad()
 
@@ -232,4 +245,6 @@ class AzulAgent(object):
             self.actor_opt.step()
             self.critic_opt.step()
             losses.append(loss.item())
+
+            # TODO: save agent into a folder so that training can be safely interrupted
         return losses

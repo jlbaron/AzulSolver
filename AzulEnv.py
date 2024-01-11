@@ -38,6 +38,7 @@ It is up to the programmer to manage the order of agents correctly (will add som
 '''
 
 import random
+from collections import Counter
 
 # TODO: allow for observation of opponents board
 class AzulEnv(object):
@@ -46,7 +47,7 @@ class AzulEnv(object):
         assert(num_players >= 2 and num_players <= 4)
         self.num_players = num_players
 
-        self.main_board_ref = [1,2,3,4,5,5,1,2,3,4,4,5,1,2,3,3,4,5,1,2,2,3,4,5,1]
+        self.main_board_ref = [0,1,2,3,4,4,0,1,2,3,3,4,0,1,2,2,3,4,0,1,1,2,3,4,0]
         self.prep_board_ref = [[0, 0] for _ in range(5)]
         self.neg_row_ref = [-1, -1, -2, -2, -2, -3, -3]
         self.factory_counts_ref = [5, 7, 9]
@@ -86,12 +87,10 @@ class AzulEnv(object):
             states.append(state)
         return states
             
-
+    # draw a tile from the bag
     def _draw(self):
         # choose valid tile
-        choice = random.randint(0, 4)
-        while self.tile_bag[choice] == 0:
-            choice = random.randint(0, 4)
+        choice = random.choices(range(self.tile_types), weights=self.tile_bag)[0]
 
         # deplete count, if no tiles left then reshuffle
         self.tile_bag[choice] -= 1
@@ -99,7 +98,7 @@ class AzulEnv(object):
             self.tile_bag = [20 for _ in range(self.tile_types)]
         return choice
     
-    # uses counts for each tile
+    # draw 4 tiles for a factory
     def _draw_four(self):
         choices = [0, 0, 0, 0, 0]
         for _ in range(4):
@@ -125,12 +124,12 @@ class AzulEnv(object):
     
     # where finds a tiles location in a row for placement
     def _where(self, tile, row):
-        board_slice = self.main_board_ref[row*5:(row+1)*5]
-        for i in range(len(board_slice)):
-            if tile == board_slice[i]:
-                return i + (row*5)
-        print("_where could not find tile")
-        assert(0)
+        try:
+            index = self.main_board_ref.index(tile, row * 5, (row + 1) * 5)
+            return index
+        except ValueError:
+            print("_where could not find tile")
+            assert 0
     
     # checks if a move is invalid and returns true
     # 3 types of invalid move:
@@ -149,7 +148,7 @@ class AzulEnv(object):
             return True
         # if placing a tile in a row where MainBoard already has that tile
         # if main board where reference board row has same tile is occupied
-        if tile_row != 0 and self.main_boards[current_player][self._where(tile_type+1, tile_row-1)]:
+        if tile_row != 0 and self.main_boards[current_player][self._where(tile_type, tile_row-1)]:
             return True
         
         return False
@@ -158,7 +157,7 @@ class AzulEnv(object):
     def _score_adjacent_tiles(self, tile, row, current_player):
         score = 1
 
-        tile_pos = self._where(tile+1, row)
+        tile_pos = self._where(tile, row)
         # up - 5, down + 5, left - 1, right + 1
         directions = [-5, 5, -1, 1]
         for direction in directions:
@@ -174,33 +173,18 @@ class AzulEnv(object):
     def _get_bonus_horizontal(self, current_player):
         # each slice of 5 in order on main board
         # just cant have a zero
-        num_bonus_rows = 0
-        for i in range(5):
-            if 0 not in self.main_boards[current_player][i*5:(i+1)*5]:
-                num_bonus_rows += 1
-
+        num_bonus_rows = sum(all(tile != 0 for tile in self.main_boards[current_player][i*5:(i+1)*5]) for i in range(5))
         return num_bonus_rows
 
     # return number of complete vertical columns
     def _get_bonus_vertical(self, current_player):
-        num_bonus_cols = 0
-
-        for i in range(5):
-            board_slice_idxs = [i, i+5, i+10, i+15, i+20]
-            board_slice = [self.main_boards[current_player][i] for i in board_slice_idxs]
-            if 0 not in board_slice:
-                num_bonus_cols += 1
-
+        num_bonus_cols = sum(all(self.main_boards[current_player][i] != 0 for i in range(j, j+21, 5)) for j in range(5))
         return num_bonus_cols
 
     # return all complete sets of 5 tiles 
     def _get_bonus_flush(self, current_player):
-        tile_ctrs = [0, 0, 0, 0, 0]
-        for i in range(len(self.main_board_ref)):
-            if self.main_boards[current_player][i] != 0:
-                # -1 because of indexing into the array, main_board_ref counts from 1
-                tile_ctrs[self.main_board_ref[i]-1] += 1
-        return sum([1 for i in tile_ctrs if i > 0])
+        tile_ctrs = Counter(self.main_boards[current_player][i] for i in range(len(self.main_board_ref)) if self.main_boards[current_player][i] != 0)
+        return sum(1 for count in tile_ctrs.values() if count > 0)
 
 
     # action comes in 3 parts [Tile type, Tile location (0 for pile), Board row placement (0 for negative row)]
@@ -214,7 +198,7 @@ class AzulEnv(object):
         info = {}
         info['round_end'] = False
         info['first_taker'] = False
-        info['restart_round'] = False
+        info['invalid_move'] = False
 
         # if true then enter scoring state, record current player
         # increment a scoring counter, once at a threshold set back to -1 
@@ -227,7 +211,7 @@ class AzulEnv(object):
 
             # check if move violates rules -> punish
             if self._invalid_move(action, current_player):
-                info['restart_round'] = True
+                info['invalid_move'] = True
                 return self._make_states(False), -1, done, info
             
             # then take by updating counts of factory, pile, prepboard (and first taker)
@@ -243,8 +227,7 @@ class AzulEnv(object):
                 factory_idx = tile_factory-1
                 # option to place in negative row
                 if tile_row == 0:
-                    for i in range(self.factories[factory_idx][tile_type]):
-                        self.neg_rows[current_player] += 1
+                    self.neg_rows[current_player] += self.factories[factory_idx][tile_type]
                 else:
                     # prepboards gain tile type and count
                     self.prep_boards[current_player][tile_row-1][0] = tile_type
@@ -260,8 +243,7 @@ class AzulEnv(object):
             else:
                 # option to place in negative row
                 if tile_row == 0:
-                    for i in range(self.pile_counts[tile_type]):
-                        self.neg_rows[current_player] += 1
+                    self.neg_rows[current_player] += self.pile_counts[tile_type]
                 else:
                     # add count to board and zero out
                     self.prep_boards[current_player][tile_row-1][0] = tile_type
@@ -285,12 +267,13 @@ class AzulEnv(object):
         else:
             # set scoring state as observation (all zeros, action discarded, dispenses reward)
             info['round_end'] = True
+
             # subtract any tokens in the negative row based on neg_row_ref
-            for i in range(self.neg_rows[current_player]):
-                if i >= len(self.neg_row_ref):
-                    self.scores[current_player] -= 4
-                else:
-                    self.scores[current_player] += self.neg_row_ref[i]
+            # Calculate the score for the negative row
+            self.scores[current_player] += sum(self.neg_row_ref[i] for i in range(min(len(self.neg_row_ref), self.neg_rows[current_player])))
+            # For additional negative tiles beyond the reference list, apply -4 * tile_count
+            extra_negative_tiles = max(0, self.neg_rows[current_player] - len(self.neg_row_ref))
+            self.scores[current_player] -= 4 * extra_negative_tiles
             self.neg_rows[current_player] = 0
 
             # clear tiles from PrepBoard to MainBoard if row is full
@@ -301,7 +284,7 @@ class AzulEnv(object):
                     # record tile and tile_row on mainboard
                     # score for adjacent tiles in a row
                     self.scores[current_player] += self._score_adjacent_tiles(tile, idx, current_player)
-                    self.main_boards[current_player][self._where(tile+1, idx)] = 1
+                    self.main_boards[current_player][self._where(tile, idx)] = 1
                     self.prep_boards[current_player][idx][1] = 0
                     self.prep_boards[current_player][idx][0] = 0
 
