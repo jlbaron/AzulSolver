@@ -16,3 +16,4 @@ This project contains an Azul MDP environment for 2-4 players as well as a PPO a
 <p> 1/7/2023: first successful play through with random moves, can't guarantee there are no bugs and it is unoptimized but it works! </p>
 <p> 1/8/2023: cleaning up everything. optimized azul environment with some more list comprehension </p>
 <p> 1/10/2023: can now visualize 2-4 players but found a bug in environment with more than 2 players</p>
+<p> 1/11/2023: improved visualization, cleaned some code </p>

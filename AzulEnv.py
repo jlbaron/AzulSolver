@@ -32,7 +32,7 @@ The tile bag will be counts for how many tiles are left
 Drawing is choosing a random number between 0-4 and depleting count for that tile (or choosing another)
 PrepBoard stores tile type, count for simplicity
 Since scoring happens at the end of the round but players need to play sequentially....
-    I have a scoring state that occurs after the last player to deliver scores (all 0 state where action is irrelevant)
+    I have a scoring state that occurs after the last player to deliver scores (board state with empty piles and factories)
     I will only issue done(s) during scoring when a horizontal row is complete
 It is up to the programmer to manage the order of agents correctly (will add some loose error checking)
 '''
@@ -61,7 +61,9 @@ class AzulEnv(object):
         self.bonus_vertical = 7
         self.bonus_flush = 10
 
-    def _make_states(self, is_score):
+    # create the list of observations
+    # returns list of lists where each inner list is player n observations
+    def _make_states(self):
         states = []
         for player in range(self.num_players):
             state = []
@@ -80,10 +82,10 @@ class AzulEnv(object):
             state.append(self.scores[player])
             state.append(int(self.first_taker))
             state.append(player)
-            if is_score:
-                state = [0 for _ in range(len(state))]
-                state[-3] = self.scores[player]
-                state[-1] = player
+            # if is_score:
+            #     state = [0 for _ in range(len(state))]
+            #     state[-3] = self.scores[player]
+            #     state[-1] = player
             states.append(state)
         return states
             
@@ -119,7 +121,7 @@ class AzulEnv(object):
         self.factories = [self._draw_four() for _ in range(self.factory_counts_ref[self.num_players-2])]
         self.pile_counts = [0, 0, 0, 0, 0]
 
-        states = self._make_states(False)
+        states = self._make_states()
         return states
     
     # where finds a tiles location in a row for placement
@@ -212,7 +214,7 @@ class AzulEnv(object):
             # check if move violates rules -> punish
             if self._invalid_move(action, current_player):
                 info['invalid_move'] = True
-                return self._make_states(False), -1, done, info
+                return self._make_states(), -1, done, info
             
             # then take by updating counts of factory, pile, prepboard (and first taker)
             # if took from pile and first taker true -> first taker false and place on neg_row
@@ -262,7 +264,7 @@ class AzulEnv(object):
             if sum([sum(i) for i in self.factories]) + sum(self.pile_counts) == 0:
                 self.score_state = 0
             
-            states = self._make_states(False)
+            states = self._make_states()
         # otherwise it is time to determine the score for the round
         else:
             # set scoring state as observation (all zeros, action discarded, dispenses reward)
@@ -309,7 +311,7 @@ class AzulEnv(object):
                 self.scores[current_player] += self._get_bonus_horizontal(current_player) * self.bonus_horizontal
                 self.scores[current_player] += self._get_bonus_vertical(current_player) * self.bonus_vertical
                 self.scores[current_player] += self._get_bonus_flush(current_player) * self.bonus_flush
-            states = self._make_states(True)
+            states = self._make_states()
 
         return states, self.scores[current_player], done, info
     
