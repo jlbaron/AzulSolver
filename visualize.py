@@ -239,9 +239,9 @@ class AzulEnvVisualization():
     
     # optional testing method where it plays only valid moves through iteration
     def _choose_pseudorandom_action(self, player):
-        for i in range(5):
-            for j in range(6):
-                for k in range(6):
+        for i in range(4, -1, -1):
+            for j in range(5, -1, -1):
+                for k in range(5, -1, -1):
                     if not self.env._invalid_move([i, j, k], player):
                         return [i, j, k]
         print("No valid move?")
@@ -275,7 +275,7 @@ class AzulEnvVisualization():
         # Main game loop
         player_order = [i for i in range(game_info['num_players'])]
         human_players = [False for _ in range(game_info['num_players'])]
-        human_players[0] = True # I will be playing this one :)
+        # human_players[0] = True # I will be playing this one :)
 
         done = False
         info = {}
@@ -290,7 +290,7 @@ class AzulEnvVisualization():
                 states, reward, done, info = self.env.step(action, player)
                 # if info flag is set then move was invalid and must try again
                 while info['invalid_move']:
-                    action = self._decide_action(player, 'human' if human_players[player] else 'random')
+                    action = self._decide_action(player, 'human' if human_players[player] else 'pseudo')
                     states, reward, done, info = self.env.step(action, player)
                 # Update the Pygame visualization
                 self.draw_state(states, player)
@@ -300,7 +300,7 @@ class AzulEnvVisualization():
                 print("Players and Order: ", player, player_order)
                 print(states)
                 print("Action: ", action)
-                pygame.time.delay(1000)
+                pygame.time.delay(2000)
             # Reorder players
             if first_taker is not None:
                 player_order[0] = first_taker
@@ -318,5 +318,7 @@ if __name__ == '__main__':
     env = AzulEnv(num_players=4, seed=1)
     vis = AzulEnvVisualization(env)
     # states = env.reset()
-    # vis._test_visual_board(states, 1)
-    vis.play_test_game()
+    states = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 2, 1, 0, 0, 0, 2, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 2, 1, 0, 0, 0, 2, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 2, 4, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 2, 1, 0, 0, 0, 2, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 2, 1, 0, 0, 0, 2, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]]
+    # no valid moves for player 3 at the above state, why?
+    vis._test_visual_board(states, 1)
+    # vis.play_test_game()

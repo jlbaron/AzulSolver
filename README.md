@@ -28,7 +28,7 @@ Here, you'll find two main components:
 - **AzulEnvironment**: A simulation environment that faithfully replicates the Azul game, designed for 2-4 players.
 - **AzulSolver**: An AI agent, built using Proximal Policy Optimization (PPO), will hopefully master the AzulEnvironment, especially in a 2-player setting.
 
-Whether you're an AI enthusiast, a game theory student, or just someone who loves Azul, this project has something exciting for you. Dive in and explore how AI can be trained to play and excel at one of the most popular board games of our time!
+Whether you're an AI enthusiast, a game theory student, or just someone who loves Azul, this project has something exciting for you. Dive in and explore how AI can be trained to play and excel at one of my favorite games of all time!
 I will be updating this README as I go with more information on usage and future updates.
 
 ## Requirements
