@@ -31,6 +31,7 @@ Game ends on the round where a player constructs their first complete row
 The tile bag will be counts for how many tiles are left
 Drawing is choosing a random number between 0-4 and depleting count for that tile (or choosing another)
 PrepBoard stores tile type, count for simplicity
+Negative tiles are expressed as a single count and then compared to the reference list for scoring
 Since scoring happens at the end of the round but players need to play sequentially....
     I have a scoring state that occurs after the last player to deliver scores (board state with empty piles and factories)
     I will only issue done(s) during scoring when a horizontal row is complete
@@ -61,31 +62,42 @@ class AzulEnv(object):
         self.bonus_vertical = 7
         self.bonus_flush = 10
 
+    # takes the raw numbers of a move and converts to a style more easily readable
+    def human_readable_move(self, action):
+        tile_type, tile_factory, tile_row = action[0], action[1], action[2]
+        tile_colors = ['RED', 'BLUE', 'GREEN', 'YELLOW', 'PURPLE']
+        factory = 'PILE' if tile_factory == 0 else str(tile_factory)
+        row = 'NEGATIVE' if tile_row == 0 else str(tile_row)
+
+        output = f"Choosing tile {tile_colors[tile_type]} from {factory} and placing in row {row}"
+        return output
+
     # create the list of observations
     # returns list of lists where each inner list is player n observations
     def _make_states(self):
         states = []
-        for player in range(self.num_players):
+        for i in range(self.num_players):
             state = []
             for factory in self.factories:
                 for tile in factory:
                     state.append(tile)
             for pile_count in self.pile_counts:
                 state.append(pile_count)
-            for prep in self.prep_boards[player]:
-                for tile in prep:
+            # append each players observations after current player
+            for player in range(self.num_players):
+                # do % math to get every player starting with me (player)
+                curr_player = (player + i) % self.num_players
+                for prep in self.prep_boards[curr_player]:
+                    for tile in prep:
+                        state.append(tile)
+                state.append(self.neg_rows[curr_player])
+                for tile in self.main_boards[curr_player]:
                     state.append(tile)
-            # separate lists
-            state.append(self.neg_rows[player])
-            for tile in self.main_boards[player]:
-                state.append(tile)
-            state.append(self.scores[player])
-            state.append(int(self.first_taker))
-            state.append(player)
-            # if is_score:
-            #     state = [0 for _ in range(len(state))]
-            #     state[-3] = self.scores[player]
-            #     state[-1] = player
+                state.append(self.scores[curr_player])
+                state.append(int(self.first_taker))
+                state.append(curr_player)
+
+            # append to states list
             states.append(state)
         return states
             
@@ -144,13 +156,16 @@ class AzulEnv(object):
         # first check if take and place does not violate game rules -> negative reward no update to game state 
         # if taking a tile from pile or factory where no tile exists
         if (tile_factory == 0 and self.pile_counts[tile_type] == 0) or (tile_factory != 0 and self.factories[tile_factory-1][tile_type] == 0):
+            # print("No tile at location", self.human_readable_move(action))
             return True
         # if placing a tile in a row occupied with different tiles
         if tile_row != 0 and (self.prep_boards[current_player][tile_row-1][0] != tile_type and self.prep_boards[current_player][tile_row-1][1] > 0):
+            # print("Prep row occupied", self.human_readable_move(action))
             return True
         # if placing a tile in a row where MainBoard already has that tile
         # if main board where reference board row has same tile is occupied
         if tile_row != 0 and self.main_boards[current_player][self._where(tile_type, tile_row-1)]:
+            # print("Main row occupied", self.human_readable_move(action))
             return True
         
         return False
@@ -193,7 +208,6 @@ class AzulEnv(object):
     # choose the type of tile and where to take from and then the row to place it on your board
     # scoring happens at the end of the round when all tiles are taken
     # State includes: factory counts, pile counts, first taker, PrepBoard, neg_row, MainBoard, score
-    # TODO: add a version of state that includes other player observations
     def step(self, action, current_player):
         tile_type, tile_factory, tile_row = action[0], action[1], action[2]
         done = False
@@ -214,7 +228,7 @@ class AzulEnv(object):
             # check if move violates rules -> punish
             if self._invalid_move(action, current_player):
                 info['invalid_move'] = True
-                return self._make_states(), -1, done, info
+                return self._make_states(), -0.001, done, info
             
             # then take by updating counts of factory, pile, prepboard (and first taker)
             # if took from pile and first taker true -> first taker false and place on neg_row

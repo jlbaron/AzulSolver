@@ -234,17 +234,18 @@ class AzulAgent(object):
 
             # wrap up all the losses into one
             # NOTE: can make coefficients hyperpparameters in the future
-            loss = actor_loss_tile*0.33 + actor_loss_factory*0.33 + actor_loss_row*0.33 + critic_loss*0.5
+            actor_loss = actor_loss_tile*0.33 + actor_loss_factory*0.33 + actor_loss_row*0.33
 
             # typical PyTorch backward pass and optimizer steps
             self.actor_opt.zero_grad()
             self.critic_opt.zero_grad()
 
-            loss.backward()
+            actor_loss.backward()
+            critic_loss.backward()
 
             self.actor_opt.step()
             self.critic_opt.step()
-            losses.append(loss.item())
+            losses.append(actor_loss.item()+critic_loss.item())
 
             # TODO: save agent into a folder so that training can be safely interrupted
         return losses
