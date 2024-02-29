@@ -303,7 +303,7 @@ class AzulEnvVisualization():
                 
                 print("Action: ", self.env.human_readable_move(action))
                 print(states)
-                pygame.time.delay(2000)
+                pygame.time.delay(100)
             # Reorder players
             if first_taker is not None:
                 player_order[0] = first_taker

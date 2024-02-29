@@ -9,6 +9,7 @@ from AzulAgent import AzulAgent
 from AzulEnv import AzulEnv
 import torch
 import yaml
+import pandas as pd
 
 
 # 1 agent trains, its opponent is pseudorandom player   
@@ -21,23 +22,16 @@ def choose_pseudorandom_action(env, player):
         return [0,0,0]
 
 
-# Experiment: train 3 actors with 1 critic, actors represent each part of Azul decision in sequence
-# actors share same construction but output 3 separate probabilities (what tile, from where, to where)
-
-
-# Experiment: train actors with and without opponents board states
 with open('configs\config.yaml', 'r') as file:
     data = yaml.safe_load(file)
 
-# The data variable now contains the dictionaries as you defined them.
-# Accessing the dictionaries
+# hyperparameter and game_info dict
 hyperparameters = data['hyperparameters']
 game_info = data['game_info']
 
 
 # initialize env, vis, and game info
 env = AzulEnv()
-
 
 game_info['n_tiles'] = env.tile_types
 game_info['n_factories'] = env.factory_counts_ref[game_info['num_players']-2] + 1 # extra option for pile
@@ -47,6 +41,8 @@ game_info['n_obs'] = 5*env.factory_counts_ref[game_info['num_players']-2] + 5 + 
 
 # init agent 
 agent = AzulAgent(hyperparameters, game_info)
+
+output_csv_path = 'train_data/test.csv'
 
 epochs = 1000
 for epoch in range(epochs):
@@ -88,18 +84,33 @@ for epoch in range(epochs):
                         states, reward, done, info = env.step(action, player)
                 
 
-                # at the end of the round, find out who is first for next round
-                if info['round_end'] and info['first_taker']:
+                # if token is taken the assign first taker for next round
+                if info['first_taker']:
                     first_taker = player
+                
+                # break from player loop if round is over (reorder) or game is over
+                if done or info['round_end']:
+                    break
 
             # reorder based on first taker
-            # some circular modulo math to preserve orders as if players were at a table
-            if first_taker is not None:
+            if not done and first_taker is not None and info['round_end']:
                 player_order[0] = first_taker
                 for player in range(game_info['num_players']-1):
+                    # some circular modulo math to preserve orders as if players were at a table
                     player_order[player] = first_taker + player + 1 % game_info['num_players']
+
         # train based on stored experiences and append to tracking list
         loss = agent.train()
-        losses.append(sum(loss)/len(loss))
-    # TODO: also output to a csv for a more permanent log
-    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")                                
+        if loss is not None:
+            losses.append(sum(loss)/len(loss))
+
+    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")   
+    # output to csv
+    df = None
+    try:
+        df = pd.read_csv(output_csv_path)
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=['Epoch', 'Loss', 'Rewards'])
+    new_df = pd.DataFrame({'Epoch': epoch, 'Loss': [sum(losses)/len(losses)], 'Rewards': [sum(rewards)/len(rewards)]})
+    df = pd.concat([df, new_df], ignore_index=True)
+    df.to_csv(output_csv_path, index=False)                          

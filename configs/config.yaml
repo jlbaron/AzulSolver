@@ -1,13 +1,13 @@
 hyperparameters:
   actor_lr: 0.0005
   critic_lr: 0.003
-  actor_hidden_dim: 256
-  critic_hidden_dim: 256
+  actor_hidden_dim: 512
+  critic_hidden_dim: 512
   avg_game_length: 38 # found from random testing, will change with more players
   # capacity and batch size expressed in # of games (multiplied with avg_game_length)
   mem_capacity: 50
   mem_batch_size: 10
-  eps_clip: 0.1
+  eps_clip: 0.2
   entropy_coeff: 0.01
   gamma: 0.99
 

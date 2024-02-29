@@ -230,7 +230,7 @@ class AzulAgent(object):
             val_clipped = returns.detach() - val_clipped
             val_unclipped = torch.mean((returns.detach() - critic_val)**2)
             critic_loss = torch.mean(torch.max(val_clipped, val_unclipped))
-            critic_loss = torch.mean((critic_val - returns.detach())**2)
+            critic_loss = torch.mean((critic_val - returns.detach())**2) * 0.5
 
             # wrap up all the losses into one
             # NOTE: can make coefficients hyperpparameters in the future
