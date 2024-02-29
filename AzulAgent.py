@@ -247,5 +247,7 @@ class AzulAgent(object):
             self.critic_opt.step()
             losses.append(actor_loss.item()+critic_loss.item())
 
-            # TODO: save agent into a folder so that training can be safely interrupted
+            # save agent into a folder so that training can be safely interrupted
+            torch.save(self.actor.state_dict(), 'checkpoints/actor.pth')
+            torch.save(self.critic.state_dict(), 'checkpoints/critic.pth')
         return losses

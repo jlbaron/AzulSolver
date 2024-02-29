@@ -8,6 +8,8 @@ This file will also contain some experiments to help determine optimal set ups f
 from AzulAgent import AzulAgent
 from AzulEnv import AzulEnv
 import torch
+import yaml
+
 
 # 1 agent trains, its opponent is pseudorandom player   
 def choose_pseudorandom_action(env, player):
@@ -24,27 +26,19 @@ def choose_pseudorandom_action(env, player):
 
 
 # Experiment: train actors with and without opponents board states
-# TODO: allow all of this to come from a config file for even more convenience
-hyperparameters = {}
-hyperparameters['actor_lr'] = 0.0005
-hyperparameters['critic_lr'] = 0.003
-hyperparameters['actor_hidden_dim'] = 256
-hyperparameters['critic_hidden_dim'] = 256
-hyperparameters['avg_game_length'] = 38  # found from random testing, will change with more players
-# capacity and batch size expressed in # of games (multiplied with avg_game_length)
-hyperparameters['mem_capacity'] = 50 
-hyperparameters['mem_batch_size'] = 10
+with open('configs\config.yaml', 'r') as file:
+    data = yaml.safe_load(file)
 
-hyperparameters['eps_clip'] = 0.1
-hyperparameters['entropy_coeff'] = 0.01
-hyperparameters['gamma'] = 0.99
+# The data variable now contains the dictionaries as you defined them.
+# Accessing the dictionaries
+hyperparameters = data['hyperparameters']
+game_info = data['game_info']
 
 
 # initialize env, vis, and game info
 env = AzulEnv()
 
-game_info = {}
-game_info['num_players'] = 2
+
 game_info['n_tiles'] = env.tile_types
 game_info['n_factories'] = env.factory_counts_ref[game_info['num_players']-2] + 1 # extra option for pile
 game_info['n_rows'] = len(env.prep_board_ref) + 1  # extra option for negative row
@@ -108,6 +102,4 @@ for epoch in range(epochs):
         loss = agent.train()
         losses.append(sum(loss)/len(loss))
     # TODO: also output to a csv for a more permanent log
-    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")
-
-                                
+    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")                                
