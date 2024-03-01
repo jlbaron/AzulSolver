@@ -42,49 +42,51 @@ import numpy as np
 # from numba import jit
 
 
-# TODO: allow for observation of opponents board
+# TODO: add clones of class functions to outside of the class
+#       this way they can be numba compiled and be MUCH faster
+
 class AzulEnv(object):
-    def __init__(self, num_players=2, seed=0):
+    def __init__(self, num_players:int=2, seed:int=0) -> None:
         np.random.seed(seed)
         assert(num_players >= 2 and num_players <= 4)
         self.num_players = num_players
 
-        self.tile_types = 5
-        self.tiles_per_factory = 4
-        self.tiles_per_type = 20
+        self.tile_types: int = 5
+        self.tiles_per_factory: int = 4
+        self.tiles_per_type: int = 20
 
-        self.n_prep_rows = 5
-        self.main_board_ref = np.array([0,1,2,3,4,4,0,1,2,3,3,4,0,1,2,2,3,4,0,1,1,2,3,4,0], dtype=int)
-        self.neg_row_ref = [-1, -1, -2, -2, -2, -3, -3]
-        self.factory_counts_ref = [5, 7, 9]
+        self.n_prep_rows: int = 5
+        self.main_board_ref: np.array = np.array([0,1,2,3,4,4,0,1,2,3,3,4,0,1,2,2,3,4,0,1,1,2,3,4,0], dtype=int)
+        self.neg_row_ref: list = [-1, -1, -2, -2, -2, -3, -3]
+        self.factory_counts_ref: list = [5, 7, 9]
 
-        self.tile_types = 5
-        self.tile_bag = np.full(self.tile_types, self.tiles_per_type)
+        self.tile_types: int = 5
+        self.tile_bag: np.array = np.full(self.tile_types, self.tiles_per_type)
         
         
         # bonus points
-        self.bonus_horizontal = 2
-        self.bonus_vertical = 7
-        self.bonus_flush = 10
+        self.bonus_horizontal: int = 2
+        self.bonus_vertical: int = 7
+        self.bonus_flush: int = 10
 
     # takes the raw numbers of a move and converts to a style more easily readable
-    def human_readable_move(self, action):
+    def human_readable_move(self, action: list) -> str:
         tile_type, tile_factory, tile_row = action[0], action[1], action[2]
-        tile_colors = ['RED', 'BLUE', 'GREEN', 'YELLOW', 'PURPLE']
-        factory = 'PILE' if tile_factory == 0 else str(tile_factory)
-        row = 'NEGATIVE' if tile_row == 0 else str(tile_row)
+        tile_colors: list = ['RED', 'BLUE', 'GREEN', 'YELLOW', 'PURPLE']
+        factory: str = 'PILE' if tile_factory == 0 else str(tile_factory)
+        row: str = 'NEGATIVE' if tile_row == 0 else str(tile_row)
 
-        output = f"Choosing tile {tile_colors[tile_type]} from {factory} and placing in row {row}"
+        output: str = f"Choosing tile {tile_colors[tile_type]} from {factory} and placing in row {row}"
         return output
 
     # create the list of observations
     # returns list of lists where each inner list is player n observations
-    def _make_states(self):
+    def _make_states(self) -> np.array:
         # size determined by the following:  number of total factory data, pile counts, (prepboard, main board, score+negativecount+firsttaker+playeridx)*nplayers
-        state_size = self.factories.shape[0] * self.factories.shape[1] + self.tile_types + ((10 + self.main_boards.shape[1] + 4)*self.num_players)
-        states = np.zeros((self.num_players, state_size), dtype=int)
+        state_size: int = self.factories.shape[0] * self.factories.shape[1] + self.tile_types + ((10 + self.main_boards.shape[1] + 4)*self.num_players)
+        states: np.array = np.zeros((self.num_players, state_size), dtype=int)
         for i in range(self.num_players):
-            state = []
+            state: list = []
 
             state.extend(self.factories.flatten())
             state.extend(self.pile_counts.flatten())
@@ -92,7 +94,7 @@ class AzulEnv(object):
             # append each players observations after current player
             for player in range(self.num_players):
                 # do % math to get every player starting with me (player)
-                curr_player = (player + i) % self.num_players
+                curr_player: int = (player + i) % self.num_players
                 state.extend(self.prep_boards[curr_player].flatten())
                 state.append(self.neg_rows[curr_player])
                 state.extend(self.main_boards[curr_player])
@@ -105,40 +107,41 @@ class AzulEnv(object):
         return states
     
     # draw 4 tiles for a factory
-    def _draw_tiles(self):
-        drawn_tiles = np.zeros(self.tile_types, dtype=int)
+    def _draw_tiles(self) -> np.array:
+        drawn_tiles: np.array = np.zeros(self.tile_types, dtype=int)
         for _ in range(self.tiles_per_factory):
             # Choose a tile based on the current counts as weights
             if np.sum(self.tile_bag) == 0:
-                self.tile_bag = np.full(self.tile_types, self.tiles_per_type)
-            tile_choice = np.random.choice(self.tile_types, p=self.tile_bag/self.tile_bag.sum())
+                self.tile_bag: np.array = np.full(self.tile_types, self.tiles_per_type)
+            tile_choice: int = np.random.choice(self.tile_types, p=self.tile_bag/self.tile_bag.sum())
             drawn_tiles[tile_choice] += 1
             self.tile_bag[tile_choice] -= 1  # Remove the drawn tile from the bag
         return drawn_tiles
 
-    def reset(self):
-        self.scores = [0 for _ in range(self.num_players)]
-        self.first_taker = True
-        self.score_state = -1
-        self.game_over = False
+    # reset game states
+    def reset(self) -> np.array:
+        self.scores: np.array = np.zeros((self.num_players), dtype=int)
+        self.first_taker: bool = True
+        self.score_state: int = -1
+        self.game_over: bool = False
 
         # each player has a 5x5 flattened board
-        self.main_boards = np.zeros((self.num_players, len(self.main_board_ref)), dtype=int)
+        self.main_boards: np.array = np.zeros((self.num_players, len(self.main_board_ref)), dtype=int)
         # each board has 5 rows and a count and type
-        self.prep_boards = np.zeros((self.num_players, self.n_prep_rows, 2), dtype=int)
-        self.neg_rows = np.zeros((self.num_players), dtype=int)
+        self.prep_boards: np.array = np.zeros((self.num_players, self.n_prep_rows, 2), dtype=int)
+        self.neg_rows: np.array = np.zeros((self.num_players), dtype=int)
 
-        self.tile_bag = np.full(self.tile_types, self.tiles_per_type)
-        self.factories = np.array([self._draw_tiles() for _ in range(self.factory_counts_ref[self.num_players-2])])
-        self.pile_counts = np.zeros((self.tile_types), dtype=int)
+        self.tile_bag: np.array = np.full(self.tile_types, self.tiles_per_type)
+        self.factories: np.array = np.array([self._draw_tiles() for _ in range(self.factory_counts_ref[self.num_players-2])])
+        self.pile_counts: np.array = np.zeros((self.tile_types), dtype=int)
 
-        states = self._make_states()
+        states: np.array = self._make_states()
         return states
     
     # where finds a tiles location in a row for placement
-    def _where(self, tile, row):
+    def _where(self, tile: int, row: int) -> int:
         try:
-            index = np.where(self.main_board_ref[row*5:(row+1)*5] == tile)[0]
+            index: int = np.where(self.main_board_ref[row*5:(row+1)*5] == tile)[0]
             return index
         except ValueError:
             print("_where could not find tile")
@@ -149,7 +152,7 @@ class AzulEnv(object):
     #       taking where a tile does not exist
     #       placing where row is already occupied with a different tile
     #       placing where row already has complete tile
-    def _invalid_move(self, action, current_player):
+    def _invalid_move(self, action: int, current_player: int) -> bool:
         tile_type, tile_factory, tile_row = action[0], action[1], action[2]
 
         # first check if take and place does not violate game rules -> negative reward no update to game state 
@@ -170,36 +173,43 @@ class AzulEnv(object):
         return False
 
     # calculates score for placing tile into row
-    def _score_adjacent_tiles(self, tile, row, current_player):
-        score = 1
+    # NOTE: bonus points for anyone who figures out how to vectorize this!
+    def _score_adjacent_tiles(self, tile: int, row: int, current_player: int) -> int:
+        score: int = 1
 
-        tile_pos = self._where(tile, row)
-        # up - 5, down + 5, left - 1, right + 1
-        directions = [-5, 5, -1, 1]
-        for direction in directions:
-            curr_tile = tile_pos + direction
-            # while tile not 0 (or out of range) increment score and then check next tile in direction
-            while (curr_tile > 0 and curr_tile < len(self.main_board_ref)) and self.main_boards[current_player][curr_tile] != 0:
-                score += 1
-                curr_tile += direction
+        tile_idx: int = self._where(tile, row)
+        board: np.array = self.main_boards[current_player].reshape(5, 5)
+
+        # convert flat index to 2d index
+        tile_row, tile_col = divmod(tile_idx, 5)
+        directions: list = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+        for d_row, d_col in directions:
+            for step in range(1, 5):  # Maximum board size in any direction is 4
+                next_row, next_col = tile_row + d_row * step, tile_col + d_col * step
+                # Check bounds and if next tile is filled
+                if 0 <= next_row < 5 and 0 <= next_col < 5 and board[next_row, next_col]:
+                    score += 1
+                else:
+                    break  # Stop if out of bounds or if a zero is encountered
 
         return score
 
     # return number of complete horizontal rows
-    def _get_bonus_horizontal(self, current_player):
+    def _get_bonus_horizontal(self, current_player: int) -> int:
         # count number of rows without a 0
-        num_bonus_rows = np.all(self.main_boards[current_player].reshape(5, 5) != 0, axis=1).sum()
+        num_bonus_rows: int = np.all(self.main_boards[current_player].reshape(5, 5) != 0, axis=1).sum()
         return num_bonus_rows
 
     # return number of complete vertical columns
-    def _get_bonus_vertical(self, current_player):
+    def _get_bonus_vertical(self, current_player: int) -> int:
         # transpose and then same idea as horizontal, count rows without 0
-        num_bonus_cols = np.all(self.main_boards[current_player].reshape(5, 5).T != 0, axis=1).sum()
+        num_bonus_cols: int = np.all(self.main_boards[current_player].reshape(5, 5).T != 0, axis=1).sum()
         return num_bonus_cols
 
     # return all complete sets of 5 tiles 
-    def _get_bonus_flush(self, current_player):
-        tile_counts = np.bincount(self.main_boards[current_player])[1:]
+    def _get_bonus_flush(self, current_player: int) -> int:
+        tile_counts: int = np.bincount(self.main_boards[current_player])[1:]
         return np.sum(tile_counts >= 5)
 
 
@@ -207,10 +217,10 @@ class AzulEnv(object):
     # choose the type of tile and where to take from and then the row to place it on your board
     # scoring happens at the end of the round when all tiles are taken
     # State includes: factory counts, pile counts, first taker, PrepBoard, neg_row, MainBoard, score
-    def step(self, action, current_player):
+    def step(self, action: list, current_player: int):# -> tuple[np.array, int, bool, dict]:
         tile_type, tile_factory, tile_row = action[0], action[1], action[2]
-        done = False
-        info = {}
+        done: bool = False
+        info: dict = {}
         info['first_taker'] = False
         info['invalid_move'] = False
 
@@ -220,7 +230,6 @@ class AzulEnv(object):
         # scenario 2: player 1, 3 players, state=0 1 scores, state=1 2 scores, state=2 0 scores and 3-2+1=0 so reset
 
         # non-scoring states -> check for valid move, manage tiles and board
-        states = [] 
         if self.score_state == -1:
 
             info['round_end'] = False
@@ -228,19 +237,19 @@ class AzulEnv(object):
             # check if move violates rules -> punish
             if self._invalid_move(action, current_player):
                 info['invalid_move'] = True
-                return self._make_states(), -0.00001, done, info
+                return self._make_states(), self.scores[current_player], done, info
             
             # then take by updating counts of factory, pile, prepboard (and first taker)
             # if took from pile and first taker true -> first taker false and place on neg_row
             if tile_factory == 0 and self.first_taker:
                 info['first_taker'] = True
-                self.first_taker = False
+                self.first_taker: bool = False
                 self.neg_rows[current_player] += 1
 
             # update factory or pile
             # factory case
             if tile_factory != 0:
-                factory_idx = tile_factory-1
+                factory_idx: int = tile_factory-1
                 # option to place in negative row
                 if tile_row == 0:
                     self.neg_rows[current_player] += self.factories[factory_idx][tile_type]
@@ -276,9 +285,8 @@ class AzulEnv(object):
 
             # if no more tiles remain in factories and pile then you are last player -> begin scoring
             if np.sum(self.factories) + np.sum(self.pile_counts) == 0:
-                self.score_state = 0
+                self.score_state: int = 0
             
-            states = self._make_states()
         # otherwise it is time to determine the score for the round
         else:
             # set scoring state as observation (all zeros, action discarded, dispenses reward)
@@ -307,13 +315,13 @@ class AzulEnv(object):
             # if final player then reset game otherwise just increment
             if self.score_state - self.num_players + 1 == 0:
                 # reset factories, pile, first taker, and score_state
-                self.factories = np.array([self._draw_tiles() for _ in range(self.factory_counts_ref[self.num_players-2])])
-                self.pile_counts = np.zeros((self.tile_types), dtype=int)
-                self.first_taker = True
-                self.score_state = -1
+                self.factories: np.array = np.array([self._draw_tiles() for _ in range(self.factory_counts_ref[self.num_players-2])])
+                self.pile_counts: np.array = np.zeros((self.tile_types), dtype=int)
+                self.first_taker: bool = True
+                self.score_state: int = -1
                 # only once scoring is fully complete and game over conditions were met is a done issued
                 if self.game_over:
-                    done = True
+                    done: bool = True
             else:
                 # increment 
                 self.score_state += 1
@@ -321,11 +329,10 @@ class AzulEnv(object):
             # if horizontal row complete then score bonus points and signal done
             if self._get_bonus_horizontal(current_player) > 0 or self.game_over:
                 # game over
-                self.game_over = True
+                self.game_over: bool = True
                 # add bonus points
                 self.scores[current_player] += self._get_bonus_horizontal(current_player) * self.bonus_horizontal
                 self.scores[current_player] += self._get_bonus_vertical(current_player) * self.bonus_vertical
                 self.scores[current_player] += self._get_bonus_flush(current_player) * self.bonus_flush
-            states = self._make_states()
-        return states, self.scores[current_player], done, info
+        return self._make_states(), self.scores[current_player], done, info
     

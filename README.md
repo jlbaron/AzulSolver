@@ -4,11 +4,9 @@ This project contains an Azul MDP environment for 2-4 players as well as a PPO a
 
 <h1> PROGRESS </h1>
 
-<p> Environment: complete and mostly optimized </p>
-<p> Solver: starting first training runs </p>
+<p> Environment: complete but still too slow. I am considering making parallel and jit compiled. </p>
+<p> Solver: working but untested, waiting on optimized environment </p>
 <p> Visualization: functional but ugly </p>
-<p> Extras: different observation option in environment, testing for 3-4 players, more training options, testing </p>
-<p> I will also need to optimize this whole thing with more vectorization and possible gpu support </p>
 
 <p> 1/2/2024: began testing environment, more work towards agent train loop </p>
 <p> 1/3/2024: progress testing environment, train loop nearly complete, planning visualizations </p>
@@ -20,6 +18,7 @@ This project contains an Azul MDP environment for 2-4 players as well as a PPO a
 <p> 2/28/2024: added other agent observations, fixed visualization bug for > 2 players </p>
 <p> 2/28/2024: added config file for hyperparameters and checkpoints for neural networks </p>
 <p> 2/29/2024: began numpy optimizations of environment </p>
+<p> 3/1/2024: added strong typing to env and csv rewards tracking for solver </p>
 
 # AzulEnvironment & AzulSolver
 
@@ -42,6 +41,7 @@ To get the most out of the AzulEnvironment and AzulSolver, you'll need to have t
 - `pandas`: For data manipulation and analysis.
 - `pytorch`: A deep learning framework that powers the AI components of the solver.
 - `pygame`: Used for creating the graphical user interface.
+- `yaml`: Used for easy parsing of config files.
 
 These libraries are essential for running the project. Make sure you have them installed before you proceed. If you're unsure how to install these, you can generally use pip, Python's package installer. For example, to install numpy, you would run:
 

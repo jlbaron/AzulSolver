@@ -9,6 +9,7 @@ from AzulAgent import AzulAgent
 from AzulEnv import AzulEnv
 import torch
 import yaml
+import pandas as pd
 
 
 # 1 agent trains, its opponent is pseudorandom player   
@@ -21,6 +22,18 @@ def choose_pseudorandom_action(env, player):
         return [0,0,0]
 
 
+
+def save_to_csv(filename, epoch, loss, rewards):
+    df = None
+    try:
+        df = pd.read_csv(f'{filename}.csv')
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=['Epoch', 'Loss', 'Rewards'])
+    new_df = pd.DataFrame({'Epoch': epoch, 'Loss': [loss], 'Rewards': [rewards]})
+    df = pd.concat([df, new_df], ignore_index=True)
+    df.to_csv(f'{filename}.csv', index=False)
+
+
 # Experiment: train 3 actors with 1 critic, actors represent each part of Azul decision in sequence
 # actors share same construction but output 3 separate probabilities (what tile, from where, to where)
 
@@ -29,15 +42,15 @@ def choose_pseudorandom_action(env, player):
 with open('configs\config.yaml', 'r') as file:
     data = yaml.safe_load(file)
 
-# The data variable now contains the dictionaries as you defined them.
-# Accessing the dictionaries
+# set hyperparameters and gameinfo dictionaries
 hyperparameters = data['hyperparameters']
 game_info = data['game_info']
 
+# file name for csv output
+csv_filename = 'test'
 
 # initialize env, vis, and game info
 env = AzulEnv()
-
 
 game_info['n_tiles'] = env.tile_types
 game_info['n_factories'] = env.factory_counts_ref[game_info['num_players']-2] + 1 # extra option for pile
@@ -69,8 +82,9 @@ for epoch in range(epochs):
                     state = torch.FloatTensor(states[player])
                     action, log_probs, value = agent.decide_action(state)
                     states, reward, done, info = env.step(action, player)
-                    agent.memory.push(state, action, reward, done, value, log_probs)
-                    rewards.append(reward)
+                    if not info['invalid_move']:
+                        agent.memory.push(state, action, reward, done, value, log_probs)
+                        rewards.append(reward)
                 else:
                     action = choose_pseudorandom_action(env, player)
                     states, reward, done, info = env.step(action, player)
@@ -84,8 +98,9 @@ for epoch in range(epochs):
                         state = torch.FloatTensor(states[player])
                         action, log_probs, value = agent.decide_action(state)
                         states, reward, done, info = env.step(action, player)
-                        agent.memory.push(state, action, reward, done, value, log_probs)
-                        rewards.append(reward)
+                        if not info['invalid_move']:
+                            agent.memory.push(state, action, reward, done, value, log_probs)
+                            rewards.append(reward)
                     else:
                         action = choose_pseudorandom_action(env, player)
                         states, reward, done, info = env.step(action, player)
@@ -104,5 +119,7 @@ for epoch in range(epochs):
     # train based on stored experiences and append to tracking list
     loss = agent.train()
     losses.append(sum(loss)/len(loss))
-    # TODO: also output to a csv for a more permanent log
-    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")                                
+
+    print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")    
+    # save data to csv
+    save_to_csv(csv_filename, epoch, sum(losses)/len(losses), sum(rewards)/len(rewards))                            
