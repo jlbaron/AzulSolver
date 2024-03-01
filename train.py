@@ -41,7 +41,7 @@ env = AzulEnv()
 
 game_info['n_tiles'] = env.tile_types
 game_info['n_factories'] = env.factory_counts_ref[game_info['num_players']-2] + 1 # extra option for pile
-game_info['n_rows'] = len(env.prep_board_ref) + 1  # extra option for negative row
+game_info['n_rows'] = env.n_prep_rows + 1  # extra option for negative row
 # 5*nfactories + 5 pile counts + nplayers * (10+1+25+3)
 game_info['n_obs'] = 5*env.factory_counts_ref[game_info['num_players']-2] + 5 + (game_info['num_players']*39)
 
@@ -75,6 +75,9 @@ for epoch in range(epochs):
                     action = choose_pseudorandom_action(env, player)
                     states, reward, done, info = env.step(action, player)
 
+                if done:
+                    break
+
                 # could be an invalid move so will need to try again (as many times as needed)
                 while info['invalid_move']:
                     if player == 0:
@@ -98,8 +101,8 @@ for epoch in range(epochs):
                 player_order[0] = first_taker
                 for player in range(game_info['num_players']-1):
                     player_order[player] = first_taker + player + 1 % game_info['num_players']
-        # train based on stored experiences and append to tracking list
-        loss = agent.train()
-        losses.append(sum(loss)/len(loss))
+    # train based on stored experiences and append to tracking list
+    loss = agent.train()
+    losses.append(sum(loss)/len(loss))
     # TODO: also output to a csv for a more permanent log
     print(f"Epoch: {epoch}, AvgScore: {sum(rewards)/len(rewards)}, AvgLoss: {sum(losses)/len(losses)}")                                

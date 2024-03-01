@@ -161,7 +161,7 @@ class AzulEnvVisualization():
                 for j in range(i+1):
                     prep_center = ((idx_col+j+1)*tile_width, board_row*tile_height)
                     # if no tile placed yet the leave as black to better visually indicate anything can be placed
-                    color = self.tile_colors[prep_type] if prep_count > 0 else self.BLACK
+                    color = self.tile_colors[prep_type-1] if prep_count > 0 else self.BLACK
                     if j < prep_count:
                         # tile exists so draw filled in
                         pygame.draw.circle(self.screen, color, prep_center, tile_radius)
@@ -180,8 +180,8 @@ class AzulEnvVisualization():
                     # replace with main_board_ref but if main_board == 1 then fill in circle
                     main_board_idx = (i*5) + j
                     main_center = ((idx_col+j+6) * tile_width, board_row*tile_height)
-                    tile_color = self.tile_colors[env.main_board_ref[main_board_idx]]
-                    if tile:
+                    tile_color = self.tile_colors[tile-1]
+                    if tile > 0:
                         # tile placed: filled in circle
                         pygame.draw.circle(self.screen, tile_color, main_center, tile_radius)
                     else:

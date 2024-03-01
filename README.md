@@ -19,6 +19,7 @@ This project contains an Azul MDP environment for 2-4 players as well as a PPO a
 <p> 1/11/2024: improved visualization, cleaned some code </p>
 <p> 2/28/2024: added other agent observations, fixed visualization bug for > 2 players </p>
 <p> 2/28/2024: added config file for hyperparameters and checkpoints for neural networks </p>
+<p> 2/29/2024: began numpy optimizations of environment </p>
 
 # AzulEnvironment & AzulSolver
 
