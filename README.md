@@ -4,21 +4,7 @@ This project contains an Azul MDP environment for 2-4 players as well as a PPO a
 
 <h1> PROGRESS </h1>
 
-<p> Environment: complete but still too slow. I am considering making parallel and jit compiled. </p>
-<p> Solver: working but untested, waiting on optimized environment </p>
-<p> Visualization: functional but ugly </p>
-
-<p> 1/2/2024: began testing environment, more work towards agent train loop </p>
-<p> 1/3/2024: progress testing environment, train loop nearly complete, planning visualizations </p>
-<p> 1/5/2024: took a major detour into pygame board representations. Nearly useable and will be helpful in finishing up the environment.</p>
-<p> 1/7/2024: first successful play through with random moves, can't guarantee there are no bugs and it is unoptimized but it works! </p>
-<p> 1/8/2024: cleaning up everything. optimized azul environment with some more list comprehension </p>
-<p> 1/10/2024: can now visualize 2-4 players but found a bug in environment with more than 2 players</p>
-<p> 1/11/2024: improved visualization, cleaned some code </p>
-<p> 2/28/2024: added other agent observations, fixed visualization bug for > 2 players </p>
-<p> 2/28/2024: added config file for hyperparameters and checkpoints for neural networks </p>
-<p> 2/29/2024: began numpy optimizations of environment </p>
-<p> 3/1/2024: added strong typing to env and csv rewards tracking for solver </p>
+<p> I am looking to revamp the whole environment into one compatible with industry standard reinforcement learning libraries. I want to support single agent training with sb3 against random or coded opponents and fully competitive multi agent training with ray and pettingzoo. I will start with remaking the base environment then, if needed, I will make some wrappers for the libraries. Once the sanity checks look good I will switch to agent training experiments. I will leave my initial agent here for now, it could be a useful reference for a full ppo implementation with all of the internals exposed. However, I will switch to doing agent training with the libraries once the environment is cleaned up and compliant. </p>
 
 # AzulEnvironment & AzulSolver
 
@@ -33,20 +19,16 @@ Here, you'll find two main components:
 Whether you're an AI enthusiast, a game theory student, or just someone who loves Azul, this project has something exciting for you. Dive in and explore how AI can be trained to play and excel at one of my favorite games of all time!
 I will be updating this README as I go with more information on usage and future updates.
 
-## Requirements
+## Set up
 
-To get the most out of the AzulEnvironment and AzulSolver, you'll need to have the following libraries installed:
+WORK IN PROGRESS. Once I get to testing I will include the versions of libraries in the requirements file. From there set up is simple:
 
-- `numpy`: For numerical operations.
-- `pandas`: For data manipulation and analysis.
-- `pytorch`: A deep learning framework that powers the AI components of the solver.
-- `pygame`: Used for creating the graphical user interface.
-- `yaml`: Used for easy parsing of config files.
+```
+python -m venv venv
 
-These libraries are essential for running the project. Make sure you have them installed before you proceed. If you're unsure how to install these, you can generally use pip, Python's package installer. For example, to install numpy, you would run:
+(launch environment)
 
-```bash
-pip install numpy
+pip install -r requirements.txt
 ```
 
 ## Game Rules of Azul
